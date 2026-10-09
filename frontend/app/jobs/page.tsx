@@ -420,7 +420,7 @@ export default function JobsPage() {
                     <span>Application Status: {submissionResult.status.toUpperCase()}</span>
                   </div>
                   <p className="leading-relaxed">
-                    {submissionResult.verification_details?.message || 'Pre-submission checks completed successfully.'}
+                    {submissionResult.verification_details?.message || (submissionResult as any).error_message || 'Pre-submission checks completed successfully.'}
                   </p>
                 </div>
 

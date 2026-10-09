@@ -290,7 +290,13 @@ def test_safe_guided_review_not_marked_submitted(db_session):
     app_record = db_session.query(Application).filter(Application.user_id == user.id, Application.job_id == job.id).first()
 
     import asyncio
-    result_app = asyncio.run(app_service.execute_submission(db_session, user.id, app_record.id))
+    from app.config import settings
+    orig_flag = settings.ENABLE_LIVE_SUBMISSIONS
+    try:
+        settings.ENABLE_LIVE_SUBMISSIONS = False
+        result_app = asyncio.run(app_service.execute_submission(db_session, user.id, app_record.id))
+    finally:
+        settings.ENABLE_LIVE_SUBMISSIONS = orig_flag
 
     # CRITICAL: Must be READY_TO_APPLY, never SUBMITTED or VERIFIED without live confirmation
     assert result_app.status == ApplicationStatus.READY_TO_APPLY.value

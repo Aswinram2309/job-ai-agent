@@ -231,7 +231,22 @@ class ApplicationService:
 
             status = submission_result.get("status", ApplicationStatus.SUBMISSION_UNKNOWN.value)
             app.status = status
-            app.verification_details = submission_result.get("verification_details", {})
+            details = submission_result.get("verification_details", {})
+            details["official_url"] = job.url
+            if not details.get("message"):
+                if status == ApplicationStatus.NEEDS_USER_ACTION.value:
+                    details["message"] = (
+                        submission_result.get("reason") or
+                        "Employer portal requires CAPTCHA or security verification. Please complete submission using the employer link."
+                    )
+                elif status in [ApplicationStatus.SUBMITTED.value, ApplicationStatus.VERIFIED.value]:
+                    details["message"] = "Application successfully submitted and verified with employer."
+                else:
+                    details["message"] = (
+                        submission_result.get("reason") or
+                        "Pre-submission data prepared. Please visit the official employer portal using the link below to finalize."
+                    )
+            app.verification_details = details
             if status in [ApplicationStatus.SUBMITTED.value, ApplicationStatus.VERIFIED.value]:
                 app.submitted_at = datetime.now(timezone.utc)
                 app.submission_reference = submission_result.get("receipt_id")
