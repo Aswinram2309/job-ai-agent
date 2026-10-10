@@ -28,8 +28,7 @@ export default function JobsPage() {
   // Application Modal State
   const [selectedJobForApply, setSelectedJobForApply] = useState<Job | null>(null);
   const [applyModalOpen, setApplyModalOpen] = useState(false);
-  const [approvalConfirmed, setApprovalConfirmed] = useState(true);
-  const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
+  const [approvalConfirmed, setApprovalConfirmed] = useState(false);
   const [answers, setAnswers] = useState({
     authorized_to_work: 'Yes',
     requires_sponsorship: 'No',
@@ -67,12 +66,11 @@ export default function JobsPage() {
   }, [router]);
 
   // Handle Search for Real Jobs
-  const handleSearch = async (e?: React.FormEvent, customKeywords?: string) => {
+  const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoadingSearch(true);
     try {
-      const activeKw = customKeywords !== undefined ? customKeywords : keywordsInput;
-      const kw = activeKw ? activeKw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const kw = keywordsInput ? keywordsInput.split(',').map(s => s.trim()).filter(Boolean) : [];
       const skills = profile?.technical_skills?.slice(0, 5) || [];
       const res = await api.searchJobs({
         keywords: kw,
@@ -90,42 +88,6 @@ export default function JobsPage() {
       console.error('Job search failed:', err);
     } finally {
       setLoadingSearch(false);
-    }
-  };
-
-  // Quick 1-Click Apply Flow
-  const handleQuickApply = async (targetJob: Job) => {
-    setApplyingJobId(targetJob.id);
-    setSaveSuccessMsg(null);
-    try {
-      // 1. Stage approval automatically with default answers
-      await api.approveJob(targetJob.id, {
-        authorized_to_work: 'Yes',
-        requires_sponsorship: 'No',
-        notice_period: 'Immediately',
-        notes: '1-Click Applied via Job Agent'
-      });
-
-      // 2. Query application record and submit to pipeline
-      const apps = await api.getApplications();
-      const existingApp = apps.find(a => a.job_id === targetJob.id);
-      if (existingApp) {
-        await api.submitApplication(existingApp.id);
-      }
-
-      // 3. Open official employer job portal directly for user comfort
-      if (targetJob.url) {
-        window.open(targetJob.url, '_blank', 'noopener,noreferrer');
-      }
-
-      setSaveSuccessMsg(`🚀 Successfully applied & staged "${targetJob.title}" at ${targetJob.company}! Official application page opened.`);
-      setTimeout(() => setSaveSuccessMsg(null), 8000);
-    } catch (err: any) {
-      // Fallback to opening the apply modal if extra info is needed
-      openApplyModal(targetJob);
-      setApplyError(err.message || 'Please review and confirm details below.');
-    } finally {
-      setApplyingJobId(null);
     }
   };
 
@@ -160,7 +122,7 @@ export default function JobsPage() {
   // Open Apply Review Modal
   const openApplyModal = (targetJob: Job) => {
     setSelectedJobForApply(targetJob);
-    setApprovalConfirmed(true);
+    setApprovalConfirmed(false);
     setSubmissionResult(null);
     setApplyError(null);
     setApplyModalOpen(true);
@@ -168,7 +130,7 @@ export default function JobsPage() {
 
   // Submit Application with User Approval
   const handleExecuteApplication = async () => {
-    if (!selectedJobForApply) return;
+    if (!selectedJobForApply || !approvalConfirmed) return;
     setSubmittingApp(true);
     setApplyError(null);
 
@@ -187,11 +149,6 @@ export default function JobsPage() {
       // Step 3: Execute application workflow
       const finalApp = await api.submitApplication(existingApp.id);
       setSubmissionResult(finalApp);
-
-      // Open official portal automatically
-      if (selectedJobForApply.url) {
-        window.open(selectedJobForApply.url, '_blank', 'noopener,noreferrer');
-      }
     } catch (err: any) {
       setApplyError(err.message || 'Application execution failed.');
     } finally {
@@ -334,31 +291,6 @@ export default function JobsPage() {
             </div>
           </form>
 
-          {/* Quick Search Suggestions */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mr-1">Popular Roles:</span>
-            {[
-              'Data Analyst',
-              'Data Engineer',
-              'Software Engineer',
-              'Python Developer',
-              'Backend Engineer',
-              'Frontend Developer'
-            ].map((role) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => {
-                  setKeywordsInput(role);
-                  handleSearch(undefined, role);
-                }}
-                className="px-3 py-1 rounded-full text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-brand-500/50 hover:bg-brand-500/10 transition-all cursor-pointer"
-              >
-                + {role}
-              </button>
-            ))}
-          </div>
-
           {/* Results Tabs & Count */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
@@ -401,8 +333,6 @@ export default function JobsPage() {
                     key={match.job.id}
                     jobMatch={match}
                     onApplyClick={openApplyModal}
-                    onQuickApply={handleQuickApply}
-                    applyingJobId={applyingJobId}
                   />
                 ))
               ) : (
@@ -428,8 +358,6 @@ export default function JobsPage() {
                     key={j.id}
                     job={j}
                     onApplyClick={openApplyModal}
-                    onQuickApply={handleQuickApply}
-                    applyingJobId={applyingJobId}
                   />
                 ))
               ) : (

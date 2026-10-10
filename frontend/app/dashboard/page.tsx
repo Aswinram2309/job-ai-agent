@@ -9,7 +9,7 @@ import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import {
   FileText, Briefcase, Send, CheckCircle2, AlertCircle,
-  ArrowRight, Sparkles, Bot, Loader2, RefreshCw, BookmarkCheck, ExternalLink
+  ArrowRight, Sparkles, Bot, Loader2, RefreshCw, BookmarkCheck
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -56,49 +56,11 @@ export default function DashboardPage() {
     loadData();
   }, [router]);
 
-  const [quickApplyingId, setQuickApplyingId] = useState<string | null>(null);
-  const [quickApplyFeedback, setQuickApplyFeedback] = useState<string | null>(null);
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim() || chatLoading) return;
 
-  const handleQuickApplyFromChat = async (job: { id: string; title: string; company: string; url?: string }) => {
-    setQuickApplyingId(job.id);
-    setQuickApplyFeedback(null);
-    try {
-      // 1. Stage approval automatically
-      await api.approveJob(job.id, {
-        authorized_to_work: 'Yes',
-        requires_sponsorship: 'No',
-        notice_period: 'Immediately',
-        notes: 'Applied via AI Chat Assistant'
-      });
-
-      // 2. Query application record and submit to pipeline
-      const apps = await api.getApplications();
-      const existingApp = apps.find(a => a.job_id === job.id);
-      if (existingApp) {
-        await api.submitApplication(existingApp.id);
-      }
-
-      // 3. Open official employer portal directly
-      if (job.url) {
-        window.open(job.url, '_blank', 'noopener,noreferrer');
-      }
-
-      setQuickApplyFeedback(`🚀 Applied to "${job.title}" at ${job.company}! Staged in your pipeline and opened portal.`);
-      await loadData();
-      setTimeout(() => setQuickApplyFeedback(null), 7000);
-    } catch (err: any) {
-      setQuickApplyFeedback(`Status: ${err.message || 'Saved to applications.'}`);
-      setTimeout(() => setQuickApplyFeedback(null), 7000);
-    } finally {
-      setQuickApplyingId(null);
-    }
-  };
-
-  const handleSendMessage = async (e?: React.FormEvent, directText?: string) => {
-    if (e) e.preventDefault();
-    const userText = (directText !== undefined ? directText : chatMessage).trim();
-    if (!userText || chatLoading) return;
-
+    const userText = chatMessage.trim();
     setChatMessage('');
     setChatHistory(prev => [...prev, { role: 'user', content: userText }]);
     setChatLoading(true);
@@ -115,30 +77,13 @@ export default function DashboardPage() {
         loadData();
       }
     } catch (err: any) {
-      const isNetErr = err?.message?.includes('NetworkError') || err?.message?.includes('fetch resource');
-      const errorMsg = isNetErr
-        ? 'Could not connect to backend server. Make sure the backend service is running on port 8000.'
-        : (err.message || 'Failed to communicate with AI agent.');
       setChatHistory(prev => [
         ...prev,
-        { role: 'model', content: `⚠️ ${errorMsg}` }
+        { role: 'model', content: `Error: ${err.message || 'Failed to communicate with AI agent.'}` }
       ]);
     } finally {
       setChatLoading(false);
     }
-  };
-
-  const extractJobsFromTools = (tools?: AgentToolCallInfo[]) => {
-    if (!tools || !tools.length) return [];
-    const foundJobs: any[] = [];
-    for (const t of tools) {
-      if (t.tool_name === 'search_jobs' && t.result?.jobs && Array.isArray(t.result.jobs)) {
-        foundJobs.push(...t.result.jobs);
-      } else if (t.tool_name === 'match_jobs' && t.result?.matches && Array.isArray(t.result.matches)) {
-        foundJobs.push(...t.result.matches.map((m: any) => m.job || m));
-      }
-    }
-    return foundJobs.slice(0, 4);
   };
 
   const getStatusBadge = (statusStr: string) => {
@@ -271,85 +216,32 @@ export default function DashboardPage() {
 
                 {/* Messages scroll box */}
                 <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
-                  {chatHistory.map((item, idx) => {
-                    const jobsFromTools = item.role === 'model' ? extractJobsFromTools(item.tools) : [];
-                    return (
+                  {chatHistory.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col ${item.role === 'user' ? 'items-end' : 'items-start'}`}
+                    >
                       <div
-                        key={idx}
-                        className={`flex flex-col ${item.role === 'user' ? 'items-end' : 'items-start'}`}
+                        className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                          item.role === 'user'
+                            ? 'bg-brand-600 text-white rounded-br-xs'
+                            : 'bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-bl-xs'
+                        }`}
                       >
-                        <div
-                          className={`max-w-[90%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                            item.role === 'user'
-                              ? 'bg-brand-600 text-white rounded-br-xs'
-                              : 'bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-bl-xs'
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap">{item.content}</p>
-
-                          {/* Interactive Job Cards if tool returned jobs */}
-                          {jobsFromTools.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-slate-700/80 space-y-2">
-                              <span className="font-semibold text-brand-300 text-[11px] block">
-                                Recommended Jobs Found:
+                        <p className="whitespace-pre-wrap">{item.content}</p>
+                        {item.tools && item.tools.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-slate-700 text-[10px] text-brand-300">
+                            <span className="font-semibold block mb-1">Executed Tools:</span>
+                            {item.tools.map((t, tidx) => (
+                              <span key={tidx} className="inline-block bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800 mr-1 mb-1">
+                                {t.tool_name}()
                               </span>
-                              <div className="grid grid-cols-1 gap-2">
-                                {jobsFromTools.map((job: any) => (
-                                  <div
-                                    key={job.id}
-                                    className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700 flex items-center justify-between gap-2"
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <h4 className="font-bold text-white text-xs truncate">{job.title}</h4>
-                                      <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                        <span className="text-slate-300 font-medium">{job.company}</span>
-                                        <span>•</span>
-                                        <span>{job.location || 'Remote'}</span>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      {job.url && (
-                                        <a
-                                          href={job.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-                                          title="Open Official Job Link"
-                                        >
-                                          <ExternalLink className="w-3.5 h-3.5" />
-                                        </a>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleQuickApplyFromChat(job)}
-                                        disabled={quickApplyingId === job.id}
-                                        className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-[11px] flex items-center gap-1 transition-all shadow-sm disabled:opacity-50"
-                                      >
-                                        <span>{quickApplyingId === job.id ? 'Applying...' : '⚡ Quick Apply'}</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {item.tools && item.tools.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-700 text-[10px] text-brand-300">
-                              <span className="font-semibold block mb-1">Executed Tools:</span>
-                              {item.tools.map((t, tidx) => (
-                                <span key={tidx} className="inline-block bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800 mr-1 mb-1">
-                                  {t.tool_name}()
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-
+                    </div>
+                  ))}
                   {chatLoading && (
                     <div className="flex items-center gap-2 text-xs text-brand-400 italic">
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -359,41 +251,13 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Quick feedback banner if job applied */}
-              {quickApplyFeedback && (
-                <div className="mx-1 my-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <span>{quickApplyFeedback}</span>
-                </div>
-              )}
-
-              {/* Quick Prompts Chips */}
-              <div className="pt-2 flex flex-wrap gap-1.5">
-                {[
-                  'Find Data Analyst jobs',
-                  'Find Remote Python roles',
-                  'Search Software Engineer jobs',
-                  'Match jobs with my resume'
-                ].map((promptText) => (
-                  <button
-                    key={promptText}
-                    type="button"
-                    onClick={() => handleSendMessage(undefined, promptText)}
-                    disabled={chatLoading}
-                    className="px-2.5 py-1 rounded-lg text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 hover:text-white transition-all disabled:opacity-50"
-                  >
-                    + {promptText}
-                  </button>
-                ))}
-              </div>
-
               {/* Chat Input form */}
-              <form onSubmit={handleSendMessage} className="mt-2 pt-2 border-t border-slate-800 flex gap-2">
+              <form onSubmit={handleSendMessage} className="mt-4 pt-3 border-t border-slate-800 flex gap-2">
                 <input
                   type="text"
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="e.g. Find remote Data Analyst jobs or check alignment..."
+                  placeholder="e.g. Find remote Python engineer jobs or check alignment..."
                   className="flex-1 bg-slate-950/70 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
                 />
                 <button
