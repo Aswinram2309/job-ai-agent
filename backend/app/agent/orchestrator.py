@@ -97,7 +97,7 @@ class JobAgentOrchestrator:
         contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
 
         candidate_models = [self.model]
-        for m in ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash"]:
+        for m in ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"]:
             if m not in candidate_models:
                 candidate_models.append(m)
 

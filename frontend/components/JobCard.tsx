@@ -9,9 +9,11 @@ interface JobCardProps {
   jobMatch?: JobMatchResult;
   job?: Job;
   onApplyClick: (targetJob: Job) => void;
+  onQuickApply?: (targetJob: Job) => void;
+  applyingJobId?: string | null;
 }
 
-export default function JobCard({ jobMatch, job, onApplyClick }: JobCardProps) {
+export default function JobCard({ jobMatch, job, onApplyClick, onQuickApply, applyingJobId }: JobCardProps) {
   const currentJob = jobMatch?.job || job;
   if (!currentJob) return null;
 
@@ -19,6 +21,7 @@ export default function JobCard({ jobMatch, job, onApplyClick }: JobCardProps) {
   const matchingSkills = jobMatch?.matching_skills || [];
   const missingSkills = jobMatch?.missing_requirements || [];
   const reasons = jobMatch?.reasons || [];
+  const isApplying = applyingJobId === currentJob.id;
 
   return (
     <div className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-3xl p-6 transition-all hover:shadow-xl hover:shadow-black/20 backdrop-blur-sm flex flex-col justify-between group">
@@ -102,24 +105,36 @@ export default function JobCard({ jobMatch, job, onApplyClick }: JobCardProps) {
       </div>
 
       {/* Footer Actions */}
-      <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+      <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
         <a
           href={currentJob.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-slate-400 hover:text-brand-300 transition-colors font-medium"
+          className="flex items-center gap-1 text-slate-400 hover:text-brand-300 transition-colors font-medium text-[11px]"
         >
           <span>Official Portal</span>
-          <ExternalLink className="w-3.5 h-3.5" />
+          <ExternalLink className="w-3 h-3" />
         </a>
 
-        <button
-          onClick={() => onApplyClick(currentJob)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-all shadow-md shadow-brand-600/20"
-        >
-          <span>Review & Apply</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onQuickApply && (
+            <button
+              onClick={() => onQuickApply(currentJob)}
+              disabled={isApplying}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold transition-all shadow-md shadow-emerald-900/30 disabled:opacity-50"
+            >
+              <span>{isApplying ? 'Applying...' : '⚡ 1-Click Apply'}</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => onApplyClick(currentJob)}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-all"
+          >
+            <span>Review</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
